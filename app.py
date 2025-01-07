@@ -32,7 +32,7 @@ nltk.download('averaged_perceptron_tagger',download_dir=nltk_data_dir)
 # -----------------------------
 app = Flask(__name__)
 app.secret_key = "YOUR_SECRET_KEY"  # 開発用途のダミーキー
-flask_cors.CORS(app)
+flask_cors.CORS(app, resources={r"/*": {"origins": "*"}})
 
 # -----------------------------
 # グローバル変数 (簡易メモリ保持)
@@ -271,4 +271,4 @@ def get_sound():
 # -----------------------------
 if __name__ == "__main__":
     # 開発時に使うポートなどを設定
-    app.run(host="0.0.0.0", port=7860, debug=True)
+    app.run(host="0.0.0.0", port=7860, )

@@ -210,7 +210,8 @@
     // --------------------------------------------
     // バックエンドとの通信 (Axios)
     // --------------------------------------------
-    const BASE_URL = `${window.location.protocol}//${window.location.hostname}`; // 本番環境の動的URL
+    const BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
+
 
     // サーバー確認用
     console.log("BASE_URL:", BASE_URL);

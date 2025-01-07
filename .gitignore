@@ -1,2 +1,4 @@
 nltk_data
 __pycache__/
+hf_cache
+hf_datasets_cache
