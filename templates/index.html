@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>In-Browser Babel Example</title>
+
+  <!-- 1) Babel本体の読み込み -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- 2) 通信ライブラリ(例: Axios)の読み込み (任意) -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  
+  <!-- スタイリングなど -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      background: #fafafa;
+    }
+    .row {
+      padding: 8px;
+      background: #ffffff;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    #phase2-panel input {
+      width: 150px;
+      margin: 4px;
+    }
+    button {
+      margin: 8px 0;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>In-Browser Babel Demo</h1>
+  <div id="app"></div>
+
+  <!-- 
+    3) 実際のアプリコード
+    type="text/babel" とすることで、Babelがブラウザ上でコンパイル実行する。
+  -->
+  <script type="text/babel">
+    /**
+     * ここでは簡易的に、Phase1 → Phase2 → Next Phase の流れを
+     * in-browser Babel だけで実装してみる。
+     */
+
+    // ------------------------------
+    // 1. グローバルステート管理 (超簡易)
+    // ------------------------------
+    let currentPhase = 1;          // 1 or 2
+    let currentIndex = 0;          // データの位置
+    let rowsPhase1 = [];           // Phase1データ保持用
+    let rowsPhase2 = [];           // Phase2でマスクされたデータ
+    const rowsPerPhase = 10;
+
+    // ------------------------------
+    // 2. 簡易的なHTML要素生成ヘルパー
+    // ------------------------------
+    function createElement(tag, props = {}, ...children) {
+      const el = document.createElement(tag);
+      // プロパティをセット
+      Object.keys(props).forEach(key => {
+        // スタイルや id, className など
+        if (key === 'style') {
+          Object.assign(el.style, props.style);
+        } else if (key.startsWith('on')) {
+          // onClick, onChange など (イベントリスナ)
+          const evt = key.substring(2).toLowerCase();
+          el.addEventListener(evt, props[key]);
+        } else {
+          el[key] = props[key];
+        }
+      });
+      // 子要素を追加
+      children.forEach(child => {
+        if (typeof child === 'string') {
+          el.appendChild(document.createTextNode(child));
+        } else if (child instanceof Node) {
+          el.appendChild(child);
+        }
+      });
+      return el;
+    }
+
+    // ------------------------------
+    // 3. バックエンド呼び出し (fetch or axios)
+    //    ここではデモ用にURLをハードコーディング
+    // ------------------------------
+    const BASE_URL = "http://localhost:5000"; // Flaskが走っているURL想定
+
+    async function apiStart() {
+      // /start
+      const res = await axios.get(`${BASE_URL}/start`);
+      return res.data; // { message, phase, current_index, rows }
+    }
+
+    async function apiPhase1() {
+      // /phase1
+      const res = await axios.get(`${BASE_URL}/phase1`);
+      return res.data;
+    }
+
+    async function apiPhase2() {
+      // /phase2
+      const res = await axios.get(`${BASE_URL}/phase2`);
+      return res.data;
+    }
+
+    async function apiCheckAnswer(payload) {
+      // /check_answer
+      const res = await axios.post(`${BASE_URL}/check_answer`, payload);
+      return res.data;
+    }
+
+    async function apiNextPhase() {
+      // /next_phase
+      const res = await axios.post(`${BASE_URL}/next_phase`);
+      return res.data;
+    }
+
+    // ダミー音声呼び出し (使うなら)
+    async function apiGetSound() {
+      const res = await axios.get(`${BASE_URL}/getSound`);
+      return res.data; // { message: "...", sound_url: null }
+    }
+
+    // ------------------------------
+    // 4. 画面描画ロジック
+    // ------------------------------
+    function renderApp() {
+      const appRoot = document.getElementById('app');
+      appRoot.innerHTML = ''; // 初期化
+
+      if (currentPhase === 0) {
+        // Start画面
+        const title = createElement('h2', {}, "Start Page");
+        const btn = createElement('button', {
+          onClick: async () => {
+            const data = await apiStart();
+            console.log(data);
+            currentPhase = data.phase; // 1になる想定
+            currentIndex = data.current_index;
+            rowsPhase1 = data.rows;
+            renderApp();
+          }
+        }, "Start Learning");
+
+        appRoot.appendChild(title);
+        appRoot.appendChild(btn);
+
+      } else if (currentPhase === 1) {
+        // Phase1: リスニング＆リーディング
+        const title = createElement('h2', {}, "Phase1: Listen & Read");
+        const info = createElement('p', {}, `Current Index: ${currentIndex}`);
+        // 表示
+        const container = createElement('div');
+        
+        rowsPhase1.forEach((row, i) => {
+          const rowDiv = createElement('div', { className: 'row' },
+            `English: ${row.English} | Japanese: ${row.Japanese}`
+          );
+          container.appendChild(rowDiv);
+        });
+
+        // 音声のダミー呼び出し
+        const soundButton = createElement('button', {
+          onClick: async () => {
+            const res = await apiGetSound();
+            alert(`getSound => ${res.message}`);
+          }
+        }, "Play Sound (Dummy)");
+
+        // 次へ進むボタン
+        const nextBtn = createElement('button', {
+          onClick: async () => {
+            // /phase2 を呼んでデータ取得 → currentPhase = 2
+            const data = await apiPhase2();
+            console.log(data);
+            currentPhase = data.phase;  // 2
+            rowsPhase2 = data.rows;
+            renderApp();
+          }
+        }, "Go to Phase2");
+
+        appRoot.appendChild(title);
+        appRoot.appendChild(info);
+        appRoot.appendChild(container);
+        appRoot.appendChild(soundButton);
+        appRoot.appendChild(nextBtn);
+
+      } else if (currentPhase === 2) {
+        // Phase2: マスキングされた単語の穴埋め
+        const title = createElement('h2', {}, "Phase2: Fill the blanks!");
+        const container = createElement('div', { id: 'phase2-panel' });
+
+        // マスキングされた行を表示
+        rowsPhase2.forEach((row, idx) => {
+          const rowDiv = createElement('div', { className: 'row' });
+          const textElem = createElement('p', {},
+            `Masked: ${row.masked_english} / JP: ${row.japanese}`
+          );
+          rowDiv.appendChild(textElem);
+
+          // 簡易的に1つの入力にまとめる (実際は複数箇所ある場合は工夫する)
+          const inputElem = createElement('input', {
+            placeholder: "Your answer here..."
+          });
+          // チェックボタン
+          const btnCheck = createElement('button', {
+            onClick: async () => {
+              const payload = {
+                original_english: row.original_english,
+                answers: [inputElem.value],  // 単一回答
+                masked_english: row.masked_english
+              };
+              const result = await apiCheckAnswer(payload);
+              alert(`${result.feedback}`); 
+            }
+          }, "Check");
+
+          rowDiv.appendChild(inputElem);
+          rowDiv.appendChild(btnCheck);
+          container.appendChild(rowDiv);
+        });
+
+        // next_phase ボタン
+        const nextBtn = createElement('button', {
+          onClick: async () => {
+            const data = await apiNextPhase();
+            console.log(data);
+            if (data.phase === 'complete') {
+              // 全部学習終了
+              alert("All data exhausted. Good job!");
+              currentPhase = 0; // Start画面に戻すか、サマリー画面に遷移するかは設計次第
+            } else {
+              // 次のフェーズ(1)へ
+              currentPhase = data.phase; // 1
+              currentIndex = data.current_index;
+              // もう一度 /phase1 を呼んで 10行データを取得
+              const phase1res = await apiPhase1();
+              rowsPhase1 = phase1res.rows;
+            }
+            renderApp();
+          }
+        }, "Next Phase");
+
+        // 画面に要素を追加
+        appRoot.appendChild(title);
+        appRoot.appendChild(container);
+        appRoot.appendChild(nextBtn);
+      }
+    }
+
+    // ------------------------------
+    // 5. ページ初期化
+    // ------------------------------
+    function init() {
+      // 最初は startページ相当、currentPhase = 0 として始める
+      currentPhase = 0;
+      renderApp();
+    }
+
+    // DOM が読み込まれたら開始
+    window.onload = init;
+  </script>
+</body>
+</html>
