@@ -5,9 +5,9 @@ import random
 import flask_cors
 from flask import send_from_directory, abort
 import os
-
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
+nltk_data_dir = "./nltk_data"
+nltk.download('punkt', download_dir=nltk_data_dir)
+nltk.download('averaged_perceptron_tagger',download_dir=nltk_data_dir)
 
 # -----------------------------
 # Flaskアプリの初期設定
