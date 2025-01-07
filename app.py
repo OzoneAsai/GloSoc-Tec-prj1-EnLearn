@@ -8,6 +8,14 @@ import os
 nltk_data_dir = "./nltk_data"
 import nltk
 from nltk.data import path
+import os
+
+# Hugging Faceのキャッシュ場所を変更
+os.environ["HF_HOME"] = "./hf_cache"
+
+# 必要に応じて他のキャッシュパスも設定
+os.environ["HF_DATASETS_CACHE"] = "./hf_datasets_cache"
+os.environ["TRANSFORMERS_CACHE"] = "./hf_transformers_cache"
 
 # NLTKデータの保存場所を指定
 if nltk_data_dir not in nltk.data.path:
