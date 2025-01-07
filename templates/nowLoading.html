@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ren'Py-like Loading Screen</title>
+    <style>
+        /* 全体のスタイル */
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+        }
+
+        /* ローディング画面のコンテナ */
+        .loading-container {
+            text-align: center;
+        }
+
+        /* タイトル */
+        .loading-title {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        /* プログレスバー */
+        .progress-bar {
+            width: 80%;
+            max-width: 600px;
+            height: 20px;
+            background-color: #444;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+
+        /* プログレスバーの内部 */
+        .progress {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff7f50, #ff4500);
+            transition: width 0.3s ease;
+        }
+
+        /* メインスクリーンのスタイル */
+        .main-screen {
+            display: none;
+            text-align: center;
+        }
+
+        .main-screen h1 {
+            font-size: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- ローディング画面 -->
+    <div class="loading-container" id="loading-container">
+        <div class="loading-title">Loading...</div>
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+    </div>
+
+    <!-- メインスクリーン -->
+    <div class="main-screen" id="main-screen">
+        <h1>Welcome to the Main Screen!</h1>
+        <!-- ここにメインコンテンツを追加 -->
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const progressBar = document.getElementById("progress");
+            const loadingContainer = document.getElementById("loading-container");
+            const mainScreen = document.getElementById("main-screen");
+            let progress = 0;
+
+            // 擬似的な進捗バーアニメーション
+            const interval = setInterval(() => {
+                progress += Math.floor(Math.random() * 10) + 5; // ランダムな増分
+                if (progress > 100) progress = 100;
+                progressBar.style.width = progress + "%";
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    // ローディング完了後の挙動
+                    setTimeout(() => {
+                        loadingContainer.style.display = "none";
+                        mainScreen.style.display = "block";
+                    }, 500);
+                }
+            }, 300);
+        });
+    </script>
+</body>
+</html>
