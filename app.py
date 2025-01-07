@@ -6,6 +6,16 @@ import flask_cors
 from flask import send_from_directory, abort
 import os
 nltk_data_dir = "./nltk_data"
+import nltk
+from nltk.data import path
+
+# NLTKデータの保存場所を指定
+if nltk_data_dir not in nltk.data.path:
+    nltk.data.path.append(nltk_data_dir)
+
+import nltk
+print(nltk.data.path)
+
 nltk.download('punkt', download_dir=nltk_data_dir)
 nltk.download('averaged_perceptron_tagger',download_dir=nltk_data_dir)
 
