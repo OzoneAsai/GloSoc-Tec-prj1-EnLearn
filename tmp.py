@@ -72,7 +72,7 @@ def daily_tips():
         "Don't be afraid to experiment.",]
     import random
     tip = random.choice(tips)
-    return tip
+    return f"Tips:{tip}"
 
         
 print(f"As it is {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} now,{greeting(CurrentTime)} Keep up the great work!  You're doing awesome.\n {daily_tips()}")

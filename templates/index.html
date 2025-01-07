@@ -2,82 +2,202 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>In-Browser Babel Example</title>
+  <title>English Learning App</title>
 
-  <!-- 1) Babel本体の読み込み -->
+  <!-- Babel本体の読み込み -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- 2) 通信ライブラリ(例: Axios)の読み込み (任意) -->
+  <!-- Axiosの読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   
-  <!-- スタイリングなど -->
+  <!-- スタイリング -->
   <style>
     body {
-      font-family: Arial, sans-serif;
-      margin: 24px;
-      background: #fafafa;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #e0f7fa, #ffffff);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #app {
+      width: 90%;
+      max-width: 800px;
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    h1 {
+      text-align: center;
+      color: #00796b;
+      margin-bottom: 24px;
+    }
+    h2 {
+      color: #00796b;
+      margin-bottom: 16px;
+      text-align: center;
     }
     .row {
-      padding: 8px;
-      background: #ffffff;
-      margin-bottom: 4px;
-      border-radius: 4px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      padding: 20px;
+      background: #f1f8e9;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      position: relative;
     }
-    #phase2-panel input {
-      width: 150px;
-      margin: 4px;
+    .blank-input {
+      width: 140px;
+      margin: 0 6px;
+      padding: 8px;
+      border: 2px solid #00796b;
+      border-radius: 4px;
+      background: #e8f5e9;
+      font-family: inherit;
+      text-align: center;
+      color: #004d40;
+      font-size: 1em;
+      transition: border-color 0.3s, background-color 0.3s;
+    }
+    .blank-input:focus {
+      outline: none;
+      border-color: #004d40;
+      background: #c8e6c9;
     }
     button {
-      margin: 8px 0;
-      padding: 8px 16px;
+      margin: 12px 6px 0 0;
+      padding: 12px 24px;
       cursor: pointer;
+      background-color: #00796b; /* Teal */
+      color: white;
+      border: none;
+      border-radius: 6px;
+      transition: background-color 0.3s, transform 0.2s;
+      font-size: 1em;
+    }
+    button:hover {
+      background-color: #004d40;
+      transform: scale(1.05);
+    }
+    .phase-button {
+      background-color: #ff8f00; /* Amber */
+    }
+    .phase-button:hover {
+      background-color: #ff6f00;
+    }
+    .check-button {
+      background-color: #6a1b9a; /* Purple */
+    }
+    .check-button:hover {
+      background-color: #4a148c;
+    }
+    .navigation-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    .feedback {
+      margin-top: 12px;
+      font-weight: bold;
+    }
+    .feedback.correct {
+      color: #388e3c; /* Green */
+    }
+    .feedback.incorrect {
+      color: #d32f2f; /* Red */
+    }
+    .original-text {
+      font-size: 1em;
+      color: #2e7d32;
+      margin-bottom: 16px;
+      background: #c8e6c9;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #81c784;
+    }
+    .masked-text {
+      font-size: 1.1em;
+      color: #000;
+      margin-bottom: 16px;
+    }
+    .masked-text input {
+      vertical-align: middle;
+    }
+    .start-button {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      font-size: 1.2em;
+      background-color: #00796b;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    .start-button:hover {
+      background-color: #004d40;
+      transform: scale(1.02);
+    }
+    .sound-button {
+      background-color: #455a64; /* Blue Grey */
+    }
+    .sound-button:hover {
+      background-color: #1c313a;
+    }
+    @media (max-width: 600px) {
+      .blank-input {
+        width: 100px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 0.9em;
+      }
+      .start-button {
+        padding: 12px;
+        font-size: 1em;
+      }
     }
   </style>
 </head>
 
 <body>
-  <h1>In-Browser Babel Demo</h1>
   <div id="app"></div>
 
   <!-- 
-    3) 実際のアプリコード
-    type="text/babel" とすることで、Babelがブラウザ上でコンパイル実行する。
+    Babelでコンパイルするコード 
+    (type="text/babel" でブラウザ上で変換)
   -->
   <script type="text/babel">
-    /**
-     * ここでは簡易的に、Phase1 → Phase2 → Next Phase の流れを
-     * in-browser Babel だけで実装してみる。
-     */
 
-    // ------------------------------
-    // 1. グローバルステート管理 (超簡易)
-    // ------------------------------
-    let currentPhase = 1;          // 1 or 2
-    let currentIndex = 0;          // データの位置
-    let rowsPhase1 = [];           // Phase1データ保持用
-    let rowsPhase2 = [];           // Phase2でマスクされたデータ
-    const rowsPerPhase = 10;
+    // --------------------------------------------
+    // グローバルステート
+    // --------------------------------------------
+    let currentPhase = 0;     // 0: Start, 1: Phase1, 2: Phase2
+    let currentIndex = 0;     // データの位置
+    let rowsPhase1 = [];      // Phase1データ保持用 (2件)
+    let rowsPhase2 = [];      // Phase2データ保持用 (2件)
+    let phase1CurrentRow = 0; // Phase1で表示中の行インデックス
 
-    // ------------------------------
-    // 2. 簡易的なHTML要素生成ヘルパー
-    // ------------------------------
+    // --------------------------------------------
+    // 簡易ヘルパー: HTML要素生成
+    // --------------------------------------------
     function createElement(tag, props = {}, ...children) {
       const el = document.createElement(tag);
-      // プロパティをセット
       Object.keys(props).forEach(key => {
-        // スタイルや id, className など
         if (key === 'style') {
           Object.assign(el.style, props.style);
         } else if (key.startsWith('on')) {
-          // onClick, onChange など (イベントリスナ)
           const evt = key.substring(2).toLowerCase();
           el.addEventListener(evt, props[key]);
+        } else if (key === 'className') {
+          el.className = props[key];
         } else {
           el[key] = props[key];
         }
       });
-      // 子要素を追加
-      children.forEach(child => {
+      children.flat().forEach(child => {
         if (typeof child === 'string') {
           el.appendChild(document.createTextNode(child));
         } else if (child instanceof Node) {
@@ -87,101 +207,241 @@
       return el;
     }
 
-    // ------------------------------
-    // 3. バックエンド呼び出し (fetch or axios)
-    //    ここではデモ用にURLをハードコーディング
-    // ------------------------------
-    const BASE_URL = "http://localhost:5000"; // Flaskが走っているURL想定
+    // --------------------------------------------
+    // バックエンドとの通信 (Axios)
+    // --------------------------------------------
+    const BASE_URL = "http://localhost:5000"; // Flaskサーバー
 
     async function apiStart() {
-      // /start
-      const res = await axios.get(`${BASE_URL}/start`);
-      return res.data; // { message, phase, current_index, rows }
+      try {
+        const res = await axios.get(`${BASE_URL}/start`);
+        return res.data;
+      } catch (error) {
+        console.error("Error in apiStart:", error);
+        alert("Failed to start the learning session. Please try again.");
+      }
     }
 
     async function apiPhase1() {
-      // /phase1
-      const res = await axios.get(`${BASE_URL}/phase1`);
-      return res.data;
+      try {
+        const res = await axios.get(`${BASE_URL}/phase1`);
+        return res.data;
+      } catch (error) {
+        console.error("Error in apiPhase1:", error);
+        alert("Failed to load Phase1 data. Please try again.");
+      }
     }
 
     async function apiPhase2() {
-      // /phase2
-      const res = await axios.get(`${BASE_URL}/phase2`);
-      return res.data;
+      try {
+        const res = await axios.get(`${BASE_URL}/phase2`);
+        return res.data;
+      } catch (error) {
+        console.error("Error in apiPhase2:", error);
+        alert("Failed to load Phase2 data. Please try again.");
+      }
     }
 
     async function apiCheckAnswer(payload) {
-      // /check_answer
-      const res = await axios.post(`${BASE_URL}/check_answer`, payload);
-      return res.data;
+      try {
+        const res = await axios.post(`${BASE_URL}/check_answer`, payload);
+        return res.data;
+      } catch (error) {
+        console.error("Error in apiCheckAnswer:", error);
+        alert("Failed to check the answer. Please try again.");
+      }
     }
 
     async function apiNextPhase() {
-      // /next_phase
-      const res = await axios.post(`${BASE_URL}/next_phase`);
-      return res.data;
+      try {
+        const res = await axios.post(`${BASE_URL}/next_phase`);
+        return res.data;
+      } catch (error) {
+        console.error("Error in apiNextPhase:", error);
+        alert("Failed to proceed to the next phase. Please try again.");
+      }
     }
 
-    // ダミー音声呼び出し (使うなら)
     async function apiGetSound() {
-      const res = await axios.get(`${BASE_URL}/getSound`);
-      return res.data; // { message: "...", sound_url: null }
+      try {
+        const res = await axios.get(`${BASE_URL}/getSound`);
+        return res.data;
+      } catch (error) {
+        console.error("Error in apiGetSound:", error);
+        alert("Failed to get sound. Please try again.");
+      }
     }
 
-    // ------------------------------
-    // 4. 画面描画ロジック
-    // ------------------------------
-    function renderApp() {
+    // --------------------------------------------
+    // フォーカス移動関数
+    // --------------------------------------------
+    function handleSpacePress(event, inputs) {
+      if (event.key === ' ') {
+        event.preventDefault(); // スペースのデフォルト動作を防止
+        const currentInput = event.target;
+        const index = Array.from(inputs).indexOf(currentInput);
+        if (index < inputs.length - 1) {
+          inputs[index + 1].focus();
+        }
+      }
+    }
+
+    // --------------------------------------------
+    // 画面描画ロジック
+    // --------------------------------------------
+    async function renderApp() {
       const appRoot = document.getElementById('app');
       appRoot.innerHTML = ''; // 初期化
 
+      // ----------------------------------------
+      // 1) スタート画面
+      // ----------------------------------------
       if (currentPhase === 0) {
-        // Start画面
-        const title = createElement('h2', {}, "Start Page");
+        const title = createElement('h1', {}, "English Learning App");
+        const subtitle = createElement('h2', {}, "Enhance your English skills through interactive practice.");
         const btn = createElement('button', {
+          className: 'start-button',
           onClick: async () => {
             const data = await apiStart();
+            if (!data) return;
             console.log(data);
-            currentPhase = data.phase; // 1になる想定
+            currentPhase = data.phase; // 1 になる想定
             currentIndex = data.current_index;
-            rowsPhase1 = data.rows;
+            rowsPhase1 = data.rows;    // 2件受け取る想定
+            phase1CurrentRow = 0;      // Phase1の現在の行インデックスをリセット
             renderApp();
           }
         }, "Start Learning");
 
         appRoot.appendChild(title);
+        appRoot.appendChild(subtitle);
         appRoot.appendChild(btn);
+        return;
+      }
 
-      } else if (currentPhase === 1) {
-        // Phase1: リスニング＆リーディング
-        const title = createElement('h2', {}, "Phase1: Listen & Read");
-        const info = createElement('p', {}, `Current Index: ${currentIndex}`);
-        // 表示
-        const container = createElement('div');
-        
-        rowsPhase1.forEach((row, i) => {
-          const rowDiv = createElement('div', { className: 'row' },
-            `English: ${row.English} | Japanese: ${row.Japanese}`
-          );
-          container.appendChild(rowDiv);
+      // ----------------------------------------
+      // 2) Phase1: 答えを見ながら穴埋め
+      // ----------------------------------------
+      if (currentPhase === 1) {
+        if (rowsPhase1.length === 0) {
+          appRoot.appendChild(createElement('p', { className: 'error' }, "No data available for Phase1."));
+          return;
+        }
+
+        // 現在表示中の行データを取得
+        const row = rowsPhase1[phase1CurrentRow];
+
+        const title = createElement('h2', {}, `Phase1: Practice (${phase1CurrentRow + 1} / ${rowsPhase1.length})`);
+        const info = createElement('p', {}, `Index: ${currentIndex + phase1CurrentRow}`);
+
+        const container = createElement('div', { className: 'row' });
+
+        // (A) オリジナル英文と日本語の表示
+        const originalHtml = createElement('div', { className: 'original-text' },
+          createElement('strong', {}, 'English: '),
+          createElement('span', {}, row.original_english),
+          createElement('br'),
+          createElement('strong', {}, 'Japanese: '),
+          createElement('span', {}, row.japanese)
+        );
+        container.appendChild(originalHtml);
+
+        // (B) マスクされた英文の表示と入力フィールド
+        const maskedText = row.masked_english.replace(/____/g, '_______');
+        const maskRegex = /_______/g;
+        const parts = maskedText.split(maskRegex);
+        const matches = maskedText.match(maskRegex) || [];
+
+        const sentenceElements = [];
+        const inputElements = []; // すべての入力フィールドを格納
+
+        parts.forEach((part, idxPart) => {
+          // 通常のテキストを挿入
+          sentenceElements.push(document.createTextNode(part));
+          // もし「_______」の位置なら、入力フィールドを挿入
+          if (idxPart < matches.length) {
+            const inputElem = createElement('input', {
+              className: 'blank-input',
+              type: 'text',
+              placeholder: "_______",
+              onKeyDown: (event) => handleSpacePress(event, inputElements)
+            });
+            sentenceElements.push(inputElem);
+            inputElements.push(inputElem);
+          }
         });
 
-        // 音声のダミー呼び出し
+        // (C) マスクされた文のコンテナに追加
+        const maskedLine = createElement('div', { className: 'masked-text' }, ...sentenceElements);
+        container.appendChild(maskedLine);
+
+        // (D) チェック結果表示用の要素
+        const feedbackSpan = createElement('div', { className: 'feedback' });
+
+        // (E) チェックボタン
+        const btnCheck = createElement('button', {
+          className: 'check-button',
+          onClick: async () => {
+            // 入力値を収集
+            const answers = inputElements.map(input => input.value.trim());
+
+            // バックエンドに送るペイロード
+            const payload = {
+              original_english: row.original_english,
+              answers: answers,
+              masked_english: row.masked_english
+            };
+            const result = await apiCheckAnswer(payload);
+            if (!result) return;
+            console.log(result);
+            feedbackSpan.textContent = result.feedback;
+            feedbackSpan.className = 'feedback ' + (result.correct_count === result.required ? 'correct' : 'incorrect');
+          }
+        }, "Check");
+
+        container.appendChild(btnCheck);
+        container.appendChild(feedbackSpan);
+
+        // ナビゲーションボタン
+        const navButtons = createElement('div', { className: 'navigation-buttons' },
+          createElement('button', {
+            onClick: () => {
+              if (phase1CurrentRow > 0) {
+                phase1CurrentRow--;
+                renderApp();
+              }
+            },
+            disabled: phase1CurrentRow === 0
+          }, "Previous"),
+          createElement('button', {
+            onClick: () => {
+              if (phase1CurrentRow < rowsPhase1.length - 1) {
+                phase1CurrentRow++;
+                renderApp();
+              }
+            },
+            disabled: phase1CurrentRow === rowsPhase1.length - 1
+          }, "Next")
+        );
+
+        // 音声を確認したい場合のダミーボタン
         const soundButton = createElement('button', {
+          className: 'sound-button',
           onClick: async () => {
             const res = await apiGetSound();
-            alert(`getSound => ${res.message}`);
+            if (!res) return;
+            alert(res.message);
           }
         }, "Play Sound (Dummy)");
 
-        // 次へ進むボタン
-        const nextBtn = createElement('button', {
+        // フェーズ2へ進むボタン
+        const phase2Btn = createElement('button', {
+          className: 'phase-button',
           onClick: async () => {
-            // /phase2 を呼んでデータ取得 → currentPhase = 2
             const data = await apiPhase2();
+            if (!data) return;
             console.log(data);
-            currentPhase = data.phase;  // 2
+            currentPhase = data.phase; // 2
             rowsPhase2 = data.rows;
             renderApp();
           }
@@ -190,82 +450,119 @@
         appRoot.appendChild(title);
         appRoot.appendChild(info);
         appRoot.appendChild(container);
+        appRoot.appendChild(navButtons);
         appRoot.appendChild(soundButton);
-        appRoot.appendChild(nextBtn);
+        appRoot.appendChild(phase2Btn);
+        return;
+      }
 
-      } else if (currentPhase === 2) {
-        // Phase2: マスキングされた単語の穴埋め
+      // ----------------------------------------
+      // 3) Phase2: 通常の穴埋め (答えは非表示 or マスキング)
+      // ----------------------------------------
+      if (currentPhase === 2) {
+        if (rowsPhase2.length === 0) {
+          appRoot.appendChild(createElement('p', { className: 'error' }, "No data available for Phase2."));
+          return;
+        }
+
         const title = createElement('h2', {}, "Phase2: Fill the blanks!");
-        const container = createElement('div', { id: 'phase2-panel' });
+        const container = createElement('div');
 
-        // マスキングされた行を表示
-        rowsPhase2.forEach((row, idx) => {
+        rowsPhase2.forEach((row) => {
           const rowDiv = createElement('div', { className: 'row' });
-          const textElem = createElement('p', {},
-            `Masked: ${row.masked_english} / JP: ${row.japanese}`
-          );
-          rowDiv.appendChild(textElem);
 
-          // 簡易的に1つの入力にまとめる (実際は複数箇所ある場合は工夫する)
-          const inputElem = createElement('input', {
-            placeholder: "Your answer here..."
+          // 「masked_english」を使い、"____" を "_______" に置換して表示
+          let maskedText = row.masked_english.replace(/____/g, '_______');
+          const maskRegex = /_______/g;
+          const parts = maskedText.split(maskRegex);
+          const matches = maskedText.match(maskRegex) || [];
+
+          const sentenceElems = [];
+          const inputElements = []; // すべての入力フィールドを格納
+
+          parts.forEach((part, idxPart) => {
+            sentenceElems.push(document.createTextNode(part));
+            if (idxPart < matches.length) {
+              const inputElem = createElement('input', {
+                className: 'blank-input',
+                type: 'text',
+                placeholder: "_______",
+                onKeyDown: (event) => handleSpacePress(event, inputElements)
+              });
+              sentenceElems.push(inputElem);
+              inputElements.push(inputElem);
+            }
           });
-          // チェックボタン
-          const btnCheck = createElement('button', {
+
+          // チェック用のUI
+          const feedbackSpan = createElement('div', { className: 'feedback' });
+          const checkBtn = createElement('button', {
+            className: 'check-button',
             onClick: async () => {
+              // 入力値の収集
+              const answers = inputElements.map(input => input.value.trim());
+
+              // バックエンドへ送信
               const payload = {
                 original_english: row.original_english,
-                answers: [inputElem.value],  // 単一回答
-                masked_english: row.masked_english
+                answers: answers,
+                masked_english: row.masked_english  // (元の "____" 版を送る)
               };
               const result = await apiCheckAnswer(payload);
-              alert(`${result.feedback}`); 
+              if (!result) return;
+              console.log(result);
+              // 結果を各コンテナに表示
+              feedbackSpan.textContent = result.feedback;
+              feedbackSpan.className = 'feedback ' + (result.correct_count === result.required ? 'correct' : 'incorrect');
             }
           }, "Check");
 
-          rowDiv.appendChild(inputElem);
-          rowDiv.appendChild(btnCheck);
+          // 組み立て
+          const maskedLine = createElement('div', { className: 'masked-text' }, ...sentenceElems);
+          rowDiv.appendChild(maskedLine);
+          rowDiv.appendChild(checkBtn);
+          rowDiv.appendChild(feedbackSpan);
+
           container.appendChild(rowDiv);
         });
 
-        // next_phase ボタン
+        // 次フェーズボタン
         const nextBtn = createElement('button', {
+          className: 'phase-button',
           onClick: async () => {
             const data = await apiNextPhase();
+            if (!data) return;
             console.log(data);
             if (data.phase === 'complete') {
-              // 全部学習終了
               alert("All data exhausted. Good job!");
-              currentPhase = 0; // Start画面に戻すか、サマリー画面に遷移するかは設計次第
+              currentPhase = 0; // スタート画面に戻る
             } else {
-              // 次のフェーズ(1)へ
               currentPhase = data.phase; // 1
               currentIndex = data.current_index;
-              // もう一度 /phase1 を呼んで 10行データを取得
-              const phase1res = await apiPhase1();
-              rowsPhase1 = phase1res.rows;
+              // 次のPhase1データを取得
+              const p1res = await apiPhase1();
+              if (!p1res) return;
+              rowsPhase1 = p1res.rows;
+              phase1CurrentRow = 0; // Phase1の行インデックスをリセット
             }
             renderApp();
           }
         }, "Next Phase");
 
-        // 画面に要素を追加
         appRoot.appendChild(title);
         appRoot.appendChild(container);
         appRoot.appendChild(nextBtn);
+        return;
       }
     }
 
-    // ------------------------------
-    // 5. ページ初期化
-    // ------------------------------
+    // --------------------------------------------
+    // ページ初期化
+    // --------------------------------------------
     function init() {
-      // 最初は startページ相当、currentPhase = 0 として始める
-      currentPhase = 0;
+      currentPhase = 0; // Start画面から
       renderApp();
     }
-
-    // DOM が読み込まれたら開始
     window.onload = init;
   </script>
 </body>
