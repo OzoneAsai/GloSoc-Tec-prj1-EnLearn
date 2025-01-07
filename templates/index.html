@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <title>English Learning App</title>
@@ -28,6 +28,7 @@
       padding: 24px;
       border-radius: 12px;
       box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      position: relative;
     }
     h1 {
       text-align: center;
@@ -159,11 +160,92 @@
         font-size: 1em;
       }
     }
+
+    /* ロード画面のスタイル */
+    .loading-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border-radius: 12px;
+      z-index: 1000;
+      display: none; /* 初期状態では非表示 */
+    }
+
+    .loading-title {
+      font-size: 2rem;
+      color: #00796b;
+      margin-bottom: 20px;
+    }
+
+    .loading-logo {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 20px auto;
+      background-image: url('https://via.placeholder.com/100'); /* ここにRen'Py風のロゴやイラストを挿入 */
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    .progress-bar {
+      width: 80%;
+      height: 20px;
+      background-color: #e0f2f1; /* 明るいティール色 */
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 0 auto;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .progress {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #81c784, #4caf50); /* グリーン系のグラデーション */
+      transition: width 0.4s ease;
+      border-radius: 10px 0 0 10px;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .loading-container::after {
+      content: '♪♪';
+      font-size: 1.5rem;
+      position: absolute;
+      top: -30px;
+      right: 20px;
+      animation: bounce 2s infinite;
+      color: #ff4081; /* ピンク色で可愛らしさを演出 */
+    }
   </style>
 </head>
 
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <!-- ロード画面 -->
+    <div class="loading-container" id="loading-container">
+      <div class="loading-logo"></div>
+      <div class="loading-title">ロード中...</div>
+      <div class="progress-bar">
+        <div class="progress" id="progress"></div>
+      </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div id="main-content">
+      <h1>English Learning App</h1>
+      <h2>Enhance your English skills through interactive practice.</h2>
+      <button class="start-button" id="start-button">Start Learning</button>
+    </div>
+  </div>
 
   <!-- 
     Babelでコンパイルするコード 
@@ -294,8 +376,8 @@
     // 画面描画ロジック
     // --------------------------------------------
     async function renderApp() {
-      const appRoot = document.getElementById('app');
-      appRoot.innerHTML = ''; // 初期化
+      const mainContent = document.getElementById('main-content');
+      mainContent.innerHTML = ''; // 初期化
 
       // ----------------------------------------
       // 1) スタート画面
@@ -306,20 +388,27 @@
         const btn = createElement('button', {
           className: 'start-button',
           onClick: async () => {
+            // ロード画面を表示
+            showLoading();
+
             const data = await apiStart();
-            if (!data) return;
+            if (!data) {
+              hideLoading();
+              return;
+            }
             console.log(data);
             currentPhase = data.phase; // 1 になる想定
             currentIndex = data.current_index;
             rowsPhase1 = data.rows;    // 2件受け取る想定
             phase1CurrentRow = 0;      // Phase1の現在の行インデックスをリセット
+            hideLoading();
             renderApp();
           }
         }, "Start Learning");
 
-        appRoot.appendChild(title);
-        appRoot.appendChild(subtitle);
-        appRoot.appendChild(btn);
+        mainContent.appendChild(title);
+        mainContent.appendChild(subtitle);
+        mainContent.appendChild(btn);
         return;
       }
 
@@ -328,7 +417,7 @@
       // ----------------------------------------
       if (currentPhase === 1) {
         if (rowsPhase1.length === 0) {
-          appRoot.appendChild(createElement('p', { className: 'error' }, "No data available for Phase1."));
+          mainContent.appendChild(createElement('p', { className: 'error' }, "No data available for Phase1."));
           return;
         }
 
@@ -442,21 +531,28 @@
         const phase2Btn = createElement('button', {
           className: 'phase-button',
           onClick: async () => {
+            // ロード画面を表示
+            showLoading();
+
             const data = await apiPhase2();
-            if (!data) return;
+            if (!data) {
+              hideLoading();
+              return;
+            }
             console.log(data);
             currentPhase = data.phase; // 2
             rowsPhase2 = data.rows;
+            hideLoading();
             renderApp();
           }
         }, "Go to Phase2");
 
-        appRoot.appendChild(title);
-        appRoot.appendChild(info);
-        appRoot.appendChild(container);
-        appRoot.appendChild(navButtons);
-        appRoot.appendChild(soundButton);
-        appRoot.appendChild(phase2Btn);
+        mainContent.appendChild(title);
+        mainContent.appendChild(info);
+        mainContent.appendChild(container);
+        mainContent.appendChild(navButtons);
+        mainContent.appendChild(soundButton);
+        mainContent.appendChild(phase2Btn);
         return;
       }
 
@@ -465,7 +561,7 @@
       // ----------------------------------------
       if (currentPhase === 2) {
         if (rowsPhase2.length === 0) {
-          appRoot.appendChild(createElement('p', { className: 'error' }, "No data available for Phase2."));
+          mainContent.appendChild(createElement('p', { className: 'error' }, "No data available for Phase2."));
           return;
         }
 
@@ -534,8 +630,14 @@
         const nextBtn = createElement('button', {
           className: 'phase-button',
           onClick: async () => {
+            // ロード画面を表示
+            showLoading();
+
             const data = await apiNextPhase();
-            if (!data) return;
+            if (!data) {
+              hideLoading();
+              return;
+            }
             console.log(data);
             if (data.phase === 'complete') {
               alert("All data exhausted. Good job!");
@@ -545,19 +647,51 @@
               currentIndex = data.current_index;
               // 次のPhase1データを取得
               const p1res = await apiPhase1();
-              if (!p1res) return;
+              if (!p1res) {
+                hideLoading();
+                return;
+              }
               rowsPhase1 = p1res.rows;
               phase1CurrentRow = 0; // Phase1の行インデックスをリセット
             }
+            hideLoading();
             renderApp();
           }
         }, "Next Phase");
 
-        appRoot.appendChild(title);
-        appRoot.appendChild(container);
-        appRoot.appendChild(nextBtn);
+        mainContent.appendChild(title);
+        mainContent.appendChild(container);
+        mainContent.appendChild(nextBtn);
         return;
       }
+    }
+
+    // --------------------------------------------
+    // ロード画面表示・非表示関数
+    // --------------------------------------------
+    function showLoading() {
+      const loadingContainer = document.getElementById('loading-container');
+      loadingContainer.style.display = 'flex';
+      const progressBar = document.getElementById("progress");
+      progressBar.style.width = '0%';
+      let progress = 0;
+
+      // 擬似的な進捗バーアニメーション
+      const interval = setInterval(() => {
+        // ランダムな増分で進捗をシミュレーション
+        progress += Math.floor(Math.random() * 10) + 5;
+        if (progress > 100) progress = 100;
+        progressBar.style.width = progress + "%";
+
+        if (progress >= 100) {
+          clearInterval(interval);
+        }
+      }, 300);
+    }
+
+    function hideLoading() {
+      const loadingContainer = document.getElementById('loading-container');
+      loadingContainer.style.display = 'none';
     }
 
     // --------------------------------------------

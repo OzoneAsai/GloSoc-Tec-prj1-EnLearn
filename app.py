@@ -104,22 +104,19 @@ def mask_sentence(sentence):
         else:
             masked_sentence.append(word)
     return " ".join(masked_sentence)
-
-BASE_DIRECTORY = "./frontend"
+from werkzeug.utils import safe_join
+from werkzeug.exceptions import NotFound
 
 @app.route('/', methods=['GET'])
 def serve_main():
     return render_template('index.html')
 
-@app.route('/<path:file_path>', methods=['GET'])
-def serve_file(file_path):
+@app.route('/static/<path:file_path>', methods=['GET'])
+def serve_static(file_path):
+    BASE_DIRECTORY = "static"  # 'static' ディレクトリを使用
     try:
-        # ファイルパスの正規化とディレクトリトラバーサル防止
-        secure_path = os.path.normpath(os.path.join(BASE_DIRECTORY, file_path))
-        
-        # ベースディレクトリ外へのアクセスを防止
-        if not secure_path.startswith(os.path.abspath(BASE_DIRECTORY)):
-            abort(403, description="Forbidden: Invalid file path")
+        # 安全なパス結合
+        secure_path = safe_join(BASE_DIRECTORY, file_path)
         
         # ファイルの存在確認
         if not os.path.isfile(secure_path):
@@ -127,7 +124,11 @@ def serve_file(file_path):
         
         # ファイルを返す
         return send_from_directory(BASE_DIRECTORY, file_path)
-    except Exception as e:
+    except NotFound:
+        abort(403, description="Forbidden: Invalid file path")
+    except Exception:
+        abort(500, description="Internal Server Error")
+
         abort(500, description=str(e))
 
 # -----------------------------
