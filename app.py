@@ -7,7 +7,7 @@ from flask import send_from_directory, abort
 import os
 nltk_data_dir = "./nltk_data"
 
-from nltk.data import path
+import nltk
 import os
 
 # Hugging Faceのキャッシュ場所を変更
@@ -21,7 +21,7 @@ os.environ["TRANSFORMERS_CACHE"] = "./hf_transformers_cache"
 if nltk_data_dir not in nltk.data.path:
     nltk.data.path.append(nltk_data_dir)
 
-import nltk
+
 print(nltk.data.path)
 
 nltk.download('punkt', download_dir=nltk_data_dir)
