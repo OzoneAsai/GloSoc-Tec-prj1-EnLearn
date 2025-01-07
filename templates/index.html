@@ -211,9 +211,7 @@
     // バックエンドとの通信 (Axios)
     // --------------------------------------------
     const isLocalhost = window.location.hostname === "localhost";
-    const BASE_URL = isLocalhost
-      ? "http://localhost:7860" // 開発環境のURL
-      : `${window.location.protocol}//${window.location.hostname}`; // 本番環境の動的URL
+    const BASE_URL = `${window.location.protocol}//${window.location.hostname}`; // 本番環境の動的URL
 
     // サーバー確認用
     console.log("BASE_URL:", BASE_URL);
