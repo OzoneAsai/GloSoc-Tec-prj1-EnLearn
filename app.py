@@ -1,12 +1,12 @@
 from flask import Flask, render_template, request, jsonify, session, g
-from datasets import load_dataset
-import nltk
+
+
 import random
 import flask_cors
 from flask import send_from_directory, abort
 import os
 nltk_data_dir = "./nltk_data"
-import nltk
+
 from nltk.data import path
 import os
 
@@ -26,7 +26,7 @@ print(nltk.data.path)
 
 nltk.download('punkt', download_dir=nltk_data_dir)
 nltk.download('averaged_perceptron_tagger',download_dir=nltk_data_dir)
-
+from datasets import load_dataset
 # -----------------------------
 # Flaskアプリの初期設定
 # -----------------------------
