@@ -234,7 +234,7 @@
     <!-- ロード画面 -->
     <div class="loading-container" id="loading-container">
       <div class="loading-logo"></div>
-      <div class="loading-title">ロード中...</div>
+      <div class="loading-title">Now loading...</div>
       <div class="progress-bar">
         <div class="progress" id="progress"></div>
       </div>
@@ -257,11 +257,11 @@
     // --------------------------------------------
     // グローバルステート
     // --------------------------------------------
-    let currentPhase = 0;     // 0: Start, 1: Phase1, 2: Phase2
-    let currentIndex = 0;     // データの位置
-    let rowsPhase1 = [];      // Phase1データ保持用 (2件)
-    let rowsPhase2 = [];      // Phase2データ保持用 (2件)
-    let phase1CurrentRow = 0; // Phase1で表示中の行インデックス
+    let sessionId = null;      // セッションID
+    let currentPhase = 0;      // 0: Start, 1: Phase1, 2: Phase2, 3: Complete
+    let rowsPhase1 = [];       // Phase1データ保持用
+    let rowsPhase2 = [];       // Phase2データ保持用
+    let phase1CurrentRow = 0;  // Phase1で表示中の行インデックス
 
     // --------------------------------------------
     // 簡易ヘルパー: HTML要素生成
@@ -276,6 +276,8 @@
           el.addEventListener(evt, props[key]);
         } else if (key === 'className') {
           el.className = props[key];
+        } else if (key === 'disabled') {
+          el.disabled = props[key];
         } else {
           el[key] = props[key];
         }
@@ -295,10 +297,10 @@
     // --------------------------------------------
     const BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
 
-
     // サーバー確認用
     console.log("BASE_URL:", BASE_URL);
 
+    // サーバー開始 API
     async function apiStart() {
       try {
         const res = await axios.get(`${BASE_URL}/start`);
@@ -309,9 +311,10 @@
       }
     }
 
+    // Phase1のデータ取得 API
     async function apiPhase1() {
       try {
-        const res = await axios.get(`${BASE_URL}/phase1`);
+        const res = await axios.get(`${BASE_URL}/phase1`, { params: { session_id: sessionId } });
         return res.data;
       } catch (error) {
         console.error("Error in apiPhase1:", error);
@@ -319,9 +322,10 @@
       }
     }
 
+    // Phase2のデータ取得 API
     async function apiPhase2() {
       try {
-        const res = await axios.get(`${BASE_URL}/phase2`);
+        const res = await axios.get(`${BASE_URL}/phase2`, { params: { session_id: sessionId } });
         return res.data;
       } catch (error) {
         console.error("Error in apiPhase2:", error);
@@ -329,6 +333,7 @@
       }
     }
 
+    // 解答のチェック API
     async function apiCheckAnswer(payload) {
       try {
         const res = await axios.post(`${BASE_URL}/check_answer`, payload);
@@ -339,9 +344,10 @@
       }
     }
 
+    // フェーズの切り替え API
     async function apiNextPhase() {
       try {
-        const res = await axios.post(`${BASE_URL}/next_phase`);
+        const res = await axios.post(`${BASE_URL}/next_phase`, { session_id: sessionId });
         return res.data;
       } catch (error) {
         console.error("Error in apiNextPhase:", error);
@@ -349,9 +355,10 @@
       }
     }
 
-    // Updated apiGetSound to accept a sentence
+    // 音声取得のAPI呼び出し
     async function apiGetSound(sentence) {
       try {
+        // sentenceをクエリパラメータとして送信
         const res = await axios.get(`${BASE_URL}/getSound`, { params: { sentence } });
         return res.data;
       } catch (error) {
@@ -382,7 +389,7 @@
       mainContent.innerHTML = ''; // 初期化
 
       // ----------------------------------------
-      // 1) スタート画面
+      // (1) スタート画面 (Phase 0)
       // ----------------------------------------
       if (currentPhase === 0) {
         const title = createElement('h1', {}, "English Learning App");
@@ -399,8 +406,8 @@
               return;
             }
             console.log(data);
+            sessionId = data.session_id;
             currentPhase = data.phase; // 1 になる想定
-            currentIndex = data.current_index;
             rowsPhase1 = data.rows;    // 2件受け取る想定
             phase1CurrentRow = 0;      // Phase1の現在の行インデックスをリセット
             hideLoading();
@@ -415,7 +422,7 @@
       }
 
       // ----------------------------------------
-      // 2) Phase1: 答えを見ながら穴埋め
+      // (2) Phase1: 答えを見ながら穴埋め練習
       // ----------------------------------------
       if (currentPhase === 1) {
         if (rowsPhase1.length === 0) {
@@ -427,7 +434,7 @@
         const row = rowsPhase1[phase1CurrentRow];
 
         const title = createElement('h2', {}, `Phase1: Practice (${phase1CurrentRow + 1} / ${rowsPhase1.length})`);
-        const info = createElement('p', {}, `Index: ${currentIndex + phase1CurrentRow}`);
+        const info = createElement('p', {}, `Index: ${phase1CurrentRow + 1}`);
 
         const container = createElement('div', { className: 'row' });
 
@@ -482,6 +489,7 @@
 
             // バックエンドに送るペイロード
             const payload = {
+              session_id: sessionId,
               original_english: row.original_english,
               answers: answers,
               masked_english: row.masked_english
@@ -529,11 +537,14 @@
               return;
             }
             const res = await apiGetSound(sentence);
-            if (res.sound_url) {
+            if (res && res.sound_url) {
               const audio = new Audio(res.sound_url);
-              audio.play();
+              audio.play().catch(err => {
+                console.error("Failed to play audio:", err);
+                alert("Could not play audio. Check console for details.");
+              });
             } else {
-              alert(res.message || "Failed to get sound.");
+              alert(res && res.message ? res.message : "Failed to get sound.");
             }
           }
         }, "Play Sound");
@@ -568,7 +579,7 @@
       }
 
       // ----------------------------------------
-      // 3) Phase2: 通常の穴埋め (答えは非表示 or マスキング)
+      // (3) Phase2: 通常の穴埋め (答えは非表示)
       // ----------------------------------------
       if (currentPhase === 2) {
         if (rowsPhase2.length === 0) {
@@ -579,7 +590,7 @@
         const title = createElement('h2', {}, "Phase2: Fill the blanks!");
         const container = createElement('div');
 
-        rowsPhase2.forEach((row) => {
+        rowsPhase2.forEach((row, index) => {
           const rowDiv = createElement('div', { className: 'row' });
 
           // 「masked_english」を使い、"____" を "_______" に置換して表示
@@ -610,25 +621,22 @@
           const checkBtn = createElement('button', {
             className: 'check-button',
             onClick: async () => {
-              // 入力値の収集
               const answers = inputElements.map(input => input.value.trim());
-
-              // バックエンドへ送信
               const payload = {
+                session_id: sessionId,
                 original_english: row.original_english,
                 answers: answers,
-                masked_english: row.masked_english  // (元の "____" 版を送る)
+                masked_english: row.masked_english
               };
               const result = await apiCheckAnswer(payload);
               if (!result) return;
               console.log(result);
-              // 結果を各コンテナに表示
               feedbackSpan.textContent = result.feedback;
               feedbackSpan.className = 'feedback ' + (result.correct_count === result.required ? 'correct' : 'incorrect');
             }
           }, "Check");
 
-          // 音声を確認したい場合のボタンを更新
+          // Play Soundボタン
           const soundButton = createElement('button', {
             className: 'sound-button',
             onClick: async () => {
@@ -638,11 +646,14 @@
                 return;
               }
               const res = await apiGetSound(sentence);
-              if (res.sound_url) {
+              if (res && res.sound_url) {
                 const audio = new Audio(res.sound_url);
-                audio.play();
+                audio.play().catch(err => {
+                  console.error("Failed to play audio:", err);
+                  alert("Could not play audio. Check console for details.");
+                });
               } else {
-                alert(res.message || "Failed to get sound.");
+                alert(res && res.message ? res.message : "Failed to get sound.");
               }
             }
           }, "Play Sound");
@@ -652,7 +663,7 @@
           rowDiv.appendChild(maskedLine);
           rowDiv.appendChild(checkBtn);
           rowDiv.appendChild(feedbackSpan);
-          rowDiv.appendChild(soundButton); // Add Play Sound button
+          rowDiv.appendChild(soundButton);
 
           container.appendChild(rowDiv);
         });
@@ -673,16 +684,10 @@
             if (data.phase === 'complete') {
               alert("All data exhausted. Good job!");
               currentPhase = 0; // スタート画面に戻る
+              sessionId = null;
             } else {
               currentPhase = data.phase; // 1
-              currentIndex = data.current_index;
-              // 次のPhase1データを取得
-              const p1res = await apiPhase1();
-              if (!p1res) {
-                hideLoading();
-                return;
-              }
-              rowsPhase1 = p1res.rows;
+              rowsPhase1 = data.rows;
               phase1CurrentRow = 0; // Phase1の行インデックスをリセット
             }
             hideLoading();
@@ -693,6 +698,39 @@
         mainContent.appendChild(title);
         mainContent.appendChild(container);
         mainContent.appendChild(nextBtn);
+        return;
+      }
+
+      // ----------------------------------------
+      // (4) 完了画面 (Phase 3)
+      // ----------------------------------------
+      if (currentPhase === 3) {
+        const title = createElement('h1', {}, "Congratulations!");
+        const message = createElement('h2', {}, "You have completed all phases.");
+        const btn = createElement('button', {
+          className: 'start-button',
+          onClick: async () => {
+            // ロード画面を表示
+            showLoading();
+
+            const data = await apiStart();
+            if (!data) {
+              hideLoading();
+              return;
+            }
+            console.log(data);
+            sessionId = data.session_id;
+            currentPhase = data.phase; // 1
+            rowsPhase1 = data.rows;
+            phase1CurrentRow = 0;
+            hideLoading();
+            renderApp();
+          }
+        }, "Restart Learning");
+
+        mainContent.appendChild(title);
+        mainContent.appendChild(message);
+        mainContent.appendChild(btn);
         return;
       }
     }

@@ -1,7 +1,7 @@
 import zipfile
 from flask import Flask, render_template, request, jsonify, session, g
 import random
-import flask_cors
+from flask_cors import CORS
 from flask import send_from_directory, abort
 import os
 import hashlib
@@ -11,6 +11,7 @@ import nltk
 import os
 
 import requests
+import csv
 
 # Hugging Faceのキャッシュ場所を変更
 os.environ["HF_HOME"] = "./hf_cache"
@@ -35,7 +36,7 @@ from datasets import load_dataset
 # -----------------------------
 app = Flask(__name__)
 app.secret_key = "YOUR_SECRET_KEY"  # 開発用途のダミーキー
-flask_cors.CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # -----------------------------
 # グローバル変数 (簡易メモリ保持)
@@ -44,6 +45,7 @@ app.config["SHUFFLED_DATA"] = None      # シャッフル後の英日ペアを�
 app.config["CURRENT_INDEX"] = 0         # 学習進捗のカウンター
 app.config["PHASE"] = 1                # 現在のフェーズ (1, 2, 3 を想定)
 app.config["BATCH_SIZE"] = 2           # 一度に処理するデータの数
+app.config["METADATA"] = {}            # 英文と音声ファイルのマッピング
 
 # -----------------------------
 # データセットロードと初期化
@@ -87,47 +89,41 @@ def initialize_audios():
     else:
         print(f"{TARGET_FOLDER} フォルダが既に存在します。初期化は不要です。")
 
+def load_metadata():
+    """metadata.csvを読み込み、英文と音声ファイルのマッピングを作成する。"""
+    metadata_path = "metadata.csv"
+    if not os.path.isfile(metadata_path):
+        raise FileNotFoundError(f"{metadata_path} が見つかりません。")
+    
+    metadata = {}
+    with open(metadata_path, mode='r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            english = row['English'].strip()
+            audio_path = row['AudioPath'].strip()
+            metadata[english.lower()] = audio_path  # 小文字化して一貫性を持たせる
+    return metadata
 
 # -----------------------------
 # アプリ起動時のフック (必要に応じて)
 # -----------------------------
 @app.before_first_request
-def before_first_request():
+def before_first_request_func():
     """サーバー起動後、初回リクエスト前にデータを読み込む。"""
-    print("init")
+    print("Initializing audios...")
     initialize_audios()
+    print("Loading metadata...")
+    app.config["METADATA"] = load_metadata()
+    print("Initializing dataset...")
     if app.config["SHUFFLED_DATA"] is None:
         app.config["SHUFFLED_DATA"] = init_dataset()  # シードを固定
         app.config["CURRENT_INDEX"] = 0
         app.config["PHASE"] = 1
-        
+    print("Initialization complete.")
 
 # -----------------------------
-# エンドポイント: /start
-# データセットの再初期化 & 学習サイクル開始
+# マスク関数
 # -----------------------------
-@app.route("/start", methods=["GET"])
-def start():
-    # 毎回初期化したい場合などはここでリセットする
-    seed = request.args.get("seed", 42, type=int)
-    shuffled_data = init_dataset(seed)
-    app.config["SHUFFLED_DATA"] = shuffled_data
-    app.config["CURRENT_INDEX"] = 0
-    app.config["PHASE"] = 1
-    
-    # 2件を切り出して返す (Phase1)
-    slice_data = shuffled_data[0:app.config["BATCH_SIZE"]]
-    response_data = []
-    for eng, jpn in slice_data:
-        response_data.append({"original_english": eng, "masked_english": mask_sentence(eng), "japanese": jpn})
-    
-    return jsonify({
-        "message": "Phase1 started with fresh data.",
-        "phase": app.config["PHASE"],
-        "current_index": app.config["CURRENT_INDEX"],
-        "rows": response_data
-    })
-
 def mask_sentence(sentence):
     """指定された品詞をマスクする関数。記号やハイフンはマスクしない。"""
     tokens = nltk.word_tokenize(sentence)
@@ -142,6 +138,38 @@ def mask_sentence(sentence):
         else:
             masked_sentence.append(word)
     return " ".join(masked_sentence)
+
+# -----------------------------
+# APIエンドポイント
+# -----------------------------
+
+# エンドポイント: /start
+# データセットの再初期化 & 学習サイクル開始
+@app.route("/start", methods=["GET"])
+def start():
+    # 毎回初期化したい場合などはここでリセットする
+    seed = request.args.get("seed", 42, type=int)
+    shuffled_data = init_dataset()
+    random.seed(seed)
+    random.shuffle(shuffled_data)
+    app.config["SHUFFLED_DATA"] = shuffled_data
+    app.config["CURRENT_INDEX"] = 0
+    app.config["PHASE"] = 1
+    
+    # 2件を切り出して返す (Phase1)
+    slice_data = shuffled_data[0:app.config["BATCH_SIZE"]]
+    response_data = []
+    for eng, jpn in slice_data:
+        masked_english = mask_sentence(eng)
+        response_data.append({"original_english": eng, "masked_english": masked_english, "japanese": jpn})
+    
+    return jsonify({
+        "message": "Phase1 started with fresh data.",
+        "phase": app.config["PHASE"],
+        "current_index": app.config["CURRENT_INDEX"],
+        "rows": response_data,
+        "session_id": hashlib.md5(os.urandom(16)).hexdigest()  # セッションIDを生成
+    })
 
 from werkzeug.utils import safe_join
 from werkzeug.exceptions import NotFound
@@ -168,12 +196,14 @@ def serve_static(file_path):
     except Exception as e:
         abort(500, description=str(e))
 
-# -----------------------------
 # エンドポイント: /phase1
 # 2行分を返して、リスニング+リーディングを行う
-# -----------------------------
 @app.route("/phase1", methods=["GET"])
-def phase1():
+def phase1_endpoint():
+    session_id = request.args.get("session_id", type=str)
+    if not session_id:
+        return jsonify({"message": "Session ID is required."}), 400
+
     # 現在のインデックスを取得
     idx = app.config["CURRENT_INDEX"]
     data = app.config["SHUFFLED_DATA"]
@@ -200,12 +230,14 @@ def phase1():
         "rows": masked_rows
     })
 
-# -----------------------------
 # エンドポイント: /phase2
 # Phase1の行から、動詞・前置詞・接続詞をマスクして返す
-# -----------------------------
 @app.route("/phase2", methods=["GET"])
-def phase2():
+def phase2_endpoint():
+    session_id = request.args.get("session_id", type=str)
+    if not session_id:
+        return jsonify({"message": "Session ID is required."}), 400
+
     idx = app.config["CURRENT_INDEX"]
     data = app.config["SHUFFLED_DATA"]
     
@@ -231,16 +263,18 @@ def phase2():
         "rows": masked_rows
     })
 
-# -----------------------------
 # エンドポイント: /check_answer
 # ユーザーが送信した回答を判定する (簡易実装)
-# -----------------------------
 @app.route("/check_answer", methods=["POST"])
-def check_answer():
+def check_answer_endpoint():
     data = request.get_json()
+    session_id = data.get("session_id", "")
     original = data.get("original_english", "")
     answers = data.get("answers", [])
     masked_english = data.get("masked_english", "")
+
+    if not session_id:
+        return jsonify({"message": "Session ID is required."}), 400
 
     tokens = nltk.word_tokenize(original)
     tagged = nltk.pos_tag(tokens)
@@ -252,121 +286,116 @@ def check_answer():
 
     # 正答カウント
     correct_count = 0
-    for ans in answers:
-        if ans.lower() in correct_tags:
+    feedback_messages = []
+    for user_ans, correct_ans in zip(answers, correct_tags):
+        if user_ans.lower() == correct_ans:
             correct_count += 1
-
-    # シンプルなフィードバック
-    feedback = f"{correct_count}/{len(correct_tags)} correct answers."
-
-    return jsonify({
+            feedback_messages.append("Correct!")
+        else:
+            feedback_messages.append(f"Incorrect. The correct answer was '{correct_ans}'.")
+    
+    feedback = " ".join(feedback_messages)
+    response = {
         "message": "Answer checked.",
         "feedback": feedback,
         "correct_count": correct_count,
         "required": len(correct_tags)
-    })
+    }
+    return jsonify(response), 200
 
-# -----------------------------
 # エンドポイント: /next_phase
 # サイクル制御 (Phase3 相当) → 次へ進む or 終了チェック
-# -----------------------------
 @app.route("/next_phase", methods=["POST"])
-def next_phase():
+def next_phase_endpoint():
+    data = request.get_json()
+    session_id = data.get("session_id", "")
+    if not session_id:
+        return jsonify({"message": "Session ID is required."}), 400
+
     # 現在のindexを +BATCH_SIZE
     app.config["CURRENT_INDEX"] += app.config["BATCH_SIZE"]
     
     # もしデータ数を超えたなら終了またはループなどのロジック
     data_length = len(app.config["SHUFFLED_DATA"])
     if app.config["CURRENT_INDEX"] >= data_length:
+        app.config["PHASE"] = 3  # 完了フェーズ
         return jsonify({
             "message": "All data exhausted. Training complete!",
             "phase": "complete",
             "current_index": app.config["CURRENT_INDEX"]
         })
     
-    # これでフェーズを1に戻す (Phase3からPhase1へ)
-    app.config["PHASE"] = 1
-    return jsonify({
-        "message": "Moved to next set of rows.",
-        "phase": app.config["PHASE"],
-        "current_index": app.config["CURRENT_INDEX"]
-    })
+    # 現在のフェーズに基づき、次のフェーズへ
+    if app.config["PHASE"] == 1:
+        # Phase1からPhase2へ移行
+        app.config["PHASE"] = 2
+        return jsonify({
+            "message": "Moved to Phase2.",
+            "phase": app.config["PHASE"],
+            "current_index": app.config["CURRENT_INDEX"]
+        })
+    elif app.config["PHASE"] == 2:
+        # Phase2からPhase1へ戻す（次のバッチ）
+        app.config["PHASE"] = 1
+        return jsonify({
+            "message": "Moved to Phase1.",
+            "phase": app.config["PHASE"],
+            "current_index": app.config["CURRENT_INDEX"]
+        })
+    else:
+        return jsonify({"message": "Invalid phase."}), 400
 
-# -----------------------------
 # エンドポイント: /getSound
 # 音声を生成して返す
-# -----------------------------
-
-# 音声ファイルを保存するディレクトリ
-AUDIO_DIR_AAC = os.path.join('audios', 'aac')
-AUDIO_DIR_MP3 = os.path.join('audios', 'mp3')
-
-# ディレクトリが存在しない場合は作成
-os.makedirs(AUDIO_DIR_AAC, exist_ok=True)
-os.makedirs(AUDIO_DIR_MP3, exist_ok=True)
-
 @app.route("/getSound", methods=["GET"])
-def get_sound():
+def get_sound_endpoint():
     sentence = request.args.get('sentence', '', type=str)
+    print(sentence)
     if not sentence:
         return jsonify({
             "message": "No sentence provided.",
             "sound_url": None
         }), 400
 
-    # 文章のハッシュを作成してファイル名に使用
-    hash_object = hashlib.md5(sentence.encode('utf-8'))
-    filename_base = hash_object.hexdigest()
-
-    # AACファイルのパス
-    filename_aac = f"{filename_base}.aac"
-    audio_path_aac = os.path.join(AUDIO_DIR_AAC, filename_aac)
-
-    # MP3ファイルのパス
-    filename_mp3 = f"{filename_base}.mp3"
-    audio_path_mp3 = os.path.join(AUDIO_DIR_MP3, filename_mp3)
-
-    # 既存のAACファイルが存在する場合
-    if os.path.isfile(audio_path_aac):
-        sound_url = f"/audios/aac/{filename_aac}"
+    # 英文を小文字化してマッピング
+    sentence_key = sentence.lower()
+    metadata = app.config.get("METADATA", {})
+    
+    audio_path = metadata.get(sentence_key, None)
+    if not audio_path:
         return jsonify({
-            "message": "AAC audio found.",
-            "sound_url": sound_url
-        })
-
-    # AACファイルが存在しない場合、MP3ファイルをチェック
-    if not os.path.isfile(audio_path_mp3):
-        try:
-            # gTTSを使用してMP3形式で音声を生成
-            tts = gTTS(text=sentence, lang='en')
-            tts.save(audio_path_mp3)
-        except Exception as e:
-            return jsonify({
-                "message": f"Error generating audio: {str(e)}",
-                "sound_url": None
-            }), 500
-
-    # MP3ファイルのURLを構築
-    sound_url = f"/audios/mp3/{filename_mp3}"
-
+            "message": "Audio file for the provided sentence does not exist.",
+            "sound_url": None
+        }), 404
+    
+    # 音声ファイルの存在を確認
+    if not os.path.isfile(audio_path):
+        return jsonify({
+            "message": "Audio file not found on the server.",
+            "sound_url": None
+        }), 404
+    
+    # 音声URLを構築
+    # audio_pathは "./audios/aac/filename.aac" のようになっている
+    # Flaskのstaticルートを利用して提供
+    # 例: /audios/aac/filename.aac
+    # これに合わせてFlaskの静的ファイル提供エンドポイントを設定
+    sound_url = audio_path.replace('./', '/')  # "./audios/aac/filename.aac" -> "/audios/aac/filename.aac"
+    
     return jsonify({
-        "message": "MP3 audio generated successfully.",
+        "message": "Audio found.",
         "sound_url": sound_url
-    })
+    }), 200
 
 # 静的ファイルのルーティング設定
 @app.route('/audios/<path:filename>')
-def serve_audio(filename):
-    if filename.endswith('.aac'):
-        return send_from_directory(AUDIO_DIR_AAC, filename)
-    elif filename.endswith('.mp3'):
-        return send_from_directory(AUDIO_DIR_MP3, filename)
-    else:
-        return jsonify({"message": "File format not supported."}), 400
+def serve_audio_static(filename):
+    audio_dir = os.path.join('audios')
+    return send_from_directory(audio_dir, filename)
 
 # -----------------------------
 # Flaskアプリ起動
 # -----------------------------
 if __name__ == "__main__":
     # 開発時に使うポートなどを設定
-    app.run(host="0.0.0.0", port=7860,)
+    app.run(host="0.0.0.0", port=7860, )
