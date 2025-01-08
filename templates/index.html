@@ -11,6 +11,7 @@
   
   <!-- スタイリング -->
   <style>
+    /* (既存のスタイルはそのまま維持) */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
@@ -348,9 +349,10 @@
       }
     }
 
-    async function apiGetSound() {
+    // Updated apiGetSound to accept a sentence
+    async function apiGetSound(sentence) {
       try {
-        const res = await axios.get(`${BASE_URL}/getSound`);
+        const res = await axios.get(`${BASE_URL}/getSound`, { params: { sentence } });
         return res.data;
       } catch (error) {
         console.error("Error in apiGetSound:", error);
@@ -517,15 +519,24 @@
           }, "Next")
         );
 
-        // 音声を確認したい場合のダミーボタン
+        // 音声を確認したい場合のボタンを更新
         const soundButton = createElement('button', {
           className: 'sound-button',
           onClick: async () => {
-            const res = await apiGetSound();
-            if (!res) return;
-            alert(res.message);
+            const sentence = row.original_english;
+            if (!sentence) {
+              alert("No sentence to play.");
+              return;
+            }
+            const res = await apiGetSound(sentence);
+            if (res.sound_url) {
+              const audio = new Audio(res.sound_url);
+              audio.play();
+            } else {
+              alert(res.message || "Failed to get sound.");
+            }
           }
-        }, "Play Sound (Dummy)");
+        }, "Play Sound");
 
         // フェーズ2へ進むボタン
         const phase2Btn = createElement('button', {
@@ -617,11 +628,31 @@
             }
           }, "Check");
 
+          // 音声を確認したい場合のボタンを更新
+          const soundButton = createElement('button', {
+            className: 'sound-button',
+            onClick: async () => {
+              const sentence = row.original_english;
+              if (!sentence) {
+                alert("No sentence to play.");
+                return;
+              }
+              const res = await apiGetSound(sentence);
+              if (res.sound_url) {
+                const audio = new Audio(res.sound_url);
+                audio.play();
+              } else {
+                alert(res.message || "Failed to get sound.");
+              }
+            }
+          }, "Play Sound");
+
           // 組み立て
           const maskedLine = createElement('div', { className: 'masked-text' }, ...sentenceElems);
           rowDiv.appendChild(maskedLine);
           rowDiv.appendChild(checkBtn);
           rowDiv.appendChild(feedbackSpan);
+          rowDiv.appendChild(soundButton); // Add Play Sound button
 
           container.appendChild(rowDiv);
         });
