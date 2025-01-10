@@ -266,6 +266,7 @@ def phase2_endpoint():
 
 # エンドポイント: /check_answer
 # ユーザーが送信した回答を判定する (簡易実装)
+
 @app.route("/check_answer", methods=["POST"])
 def check_answer_endpoint():
     data = request.get_json()
@@ -282,7 +283,9 @@ def check_answer_endpoint():
     
     correct_tags = []
     for w, pos in tagged:
-        if pos.startswith("VB") or pos in ("IN", "CC", "TO"):
+        # 動詞 (VB*), 前置詞 (IN), 接続詞 (CC), 不定詞マーカー (TO) を正解候補とする
+        # かつ単語がアルファベットのみで構成されている場合
+        if (pos.startswith("VB") or pos in ("IN", "CC", "TO")) and w.isalpha():
             correct_tags.append(w.lower())  # 正解候補
 
     # 正答カウント
@@ -294,7 +297,7 @@ def check_answer_endpoint():
             feedback_messages.append("Correct!")
         else:
             feedback_messages.append(f"Incorrect. The correct answer was '{correct_ans}'.")
-    
+
     feedback = " ".join(feedback_messages)
     response = {
         "message": "Answer checked.",
