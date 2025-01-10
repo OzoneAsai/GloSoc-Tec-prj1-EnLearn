@@ -10,6 +10,7 @@ from gtts import gTTS  # Import gTTS
 import nltk
 import os
 
+import pandas as pd
 import requests
 import csv
 
@@ -347,41 +348,75 @@ def next_phase_endpoint():
 
 # エンドポイント: /getSound
 # 音声を生成して返す
+
+# CSVファイルのパスを設定
+METADATA_CSV_PATH = "metadata.csv"
+
+def load_metadata_csv():
+    """CSVファイルを読み込み、DataFrameを返す"""
+    try:
+        metadata_df = pd.read_csv(METADATA_CSV_PATH)
+        return metadata_df
+    except FileNotFoundError:
+        return None
+
 @app.route("/getSound", methods=["GET"])
 def get_sound_endpoint():
     sentence = request.args.get('sentence', '', type=str)
-    print(sentence)
+    print(f"Received sentence: {sentence}")
     if not sentence:
         return jsonify({
             "message": "No sentence provided.",
             "sound_url": None
         }), 400
 
-    # 英文を小文字化してマッピング
-    sentence_key = sentence.lower()
-    metadata = app.config.get("METADATA", {})
-    
-    audio_path = metadata.get(sentence_key, None)
+    # 検索のためのキーを準備
+    sentence_lower = sentence.lower()
+    sentence_original = sentence
+
+    # 方法1: 辞書で小文字化されたキーを使用して検索
+    metadata_dict = app.config.get("METADATA_DICT", {})
+    audio_path = metadata_dict.get(sentence_lower, None)
+
+    # 方法1: 辞書で元のキーを使用して検索（必要に応じて）
+    if not audio_path:
+        audio_path = metadata_dict.get(sentence_original, None)
+
+    # 方法2: CSVファイルを用いた検索
+    if not audio_path:
+        metadata_df = load_metadata_csv()
+        if metadata_df is None:
+            return jsonify({
+                "message": "Metadata CSV file not found.",
+                "sound_url": None
+            }), 500
+
+        # まず小文字化して検索
+        audio_path_row = metadata_df[metadata_df['English'].str.lower() == sentence_lower]
+        if not audio_path_row.empty:
+            audio_path = audio_path_row.iloc[0]['AudioPath']
+        else:
+            # 小文字化で見つからなければ、元の文で再検索
+            audio_path_row = metadata_df[metadata_df['English'] == sentence_original]
+            if not audio_path_row.empty:
+                audio_path = audio_path_row.iloc[0]['AudioPath']
+
+    # どちらの方法でも見つからない場合
     if not audio_path:
         return jsonify({
             "message": "Audio file for the provided sentence does not exist.",
             "sound_url": None
         }), 404
-    
+
     # 音声ファイルの存在を確認
     if not os.path.isfile(audio_path):
         return jsonify({
             "message": "Audio file not found on the server.",
             "sound_url": None
         }), 404
-    
+
     # 音声URLを構築
-    # audio_pathは "./audios/aac/filename.aac" のようになっている
-    # Flaskのstaticルートを利用して提供
-    # 例: /audios/aac/filename.aac
-    # これに合わせてFlaskの静的ファイル提供エンドポイントを設定
-    sound_url = audio_path.replace('./', '/')  # "./audios/aac/filename.aac" -> "/audios/aac/filename.aac"
-    
+    sound_url = audio_path.replace('./', '/')
     return jsonify({
         "message": "Audio found.",
         "sound_url": sound_url
