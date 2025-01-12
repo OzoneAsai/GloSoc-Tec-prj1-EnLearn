@@ -590,6 +590,16 @@
         const title = createElement('h2', {}, "Phase2: Fill the blanks!");
         const container = createElement('div');
 
+        // (A) オリジナル英文と日本語の表示(indev)
+        const originalHtml = createElement('div', { className: 'original-text' },
+          createElement('strong', {}, 'English: '),
+          createElement('span', {}, row.original_english),
+          createElement('br'),
+          createElement('strong', {}, 'Japanese: '),
+          createElement('span', {}, row.japanese)
+        );
+        container.appendChild(originalHtml);
+        //(InDev)
         rowsPhase2.forEach((row, index) => {
           const rowDiv = createElement('div', { className: 'row' });
 
